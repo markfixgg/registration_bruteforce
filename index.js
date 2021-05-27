@@ -11,11 +11,11 @@ app.use(bodyParser.urlencoded({extended: true}))
 app.use(bodyParser.json())
 
 app.post('/register', async (req, res) => {
-    const { first_name, lastName, middle_name, email, phone_number } = req.body;
+    const { first_name, lastName, middle_name, email, phone_number, improvementId } = req.body;
     console.log(req.body)
-    if(!first_name || !lastName || !middle_name || !email || !phone_number) return res.send({success: false, error: "Provide credentials!"});
+    if(!first_name || !lastName || !middle_name || !email || !phone_number || !improvementId) return res.send({success: false, error: "Provide credentials!"});
 
-    await register_account(first_name, lastName, middle_name, email, phone_number, (err, result) => {
+    await register_account(first_name, lastName, middle_name, email, phone_number, improvementId, (err, result) => {
         res.send(result)
     })
 })

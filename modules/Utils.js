@@ -50,8 +50,8 @@ const brute_code = async (personUid, callback) => {
     }, 3)
 }
 
-const register_account = async (first_name, lastName, middle_name, email, phone_number, callback) => {  // Фамилия | Имя | Отчество | емейл | телефон
-    if(!first_name || !lastName || !middle_name || !email || !phone_number) return;
+const register_account = async (first_name, lastName, middle_name, email, phone_number, improvementId, callback) => {  // Фамилия | Имя | Отчество | емейл | телефон
+    if(!first_name || !lastName || !middle_name || !email || !phone_number || !improvementId) return;
     const response = await instance.post('/person', {
         agreements: {
             agreementEmail: false,
@@ -61,6 +61,7 @@ const register_account = async (first_name, lastName, middle_name, email, phone_
         },
         firstName: first_name,
         lastName: lastName,
+        improvementId,
         patronymic: middle_name,
         email,
         phone: phone_number
