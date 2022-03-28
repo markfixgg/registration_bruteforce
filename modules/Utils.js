@@ -1,7 +1,6 @@
 const axios = require('axios');
-const { Worker, workerData } = require('worker_threads');
+const { Worker } = require('worker_threads');
 const { PROXIES } = require('../configs');
-fs = require('fs');
 
 const instance = axios.create({
     baseURL: 'https://api.za.gorodsreda.ru/v1',
@@ -19,8 +18,7 @@ const instance = axios.create({
 });
 
 if(PROXIES.length >= 1) {
-    let random_proxy = PROXIES[Math.floor(Math.random() * PROXIES.length)];
-    instance.defaults.proxy = random_proxy;
+    instance.defaults.proxy = PROXIES[Math.floor(Math.random() * PROXIES.length)];
 }
 
 const startWorker = async (workerData, callback) => {
@@ -41,12 +39,12 @@ const startWorker = async (workerData, callback) => {
 
 
 const brute_code = async (personUid, callback) => {
-    await startWorker({personUid}, (err, result) => {
+    await startWorker({ personUid }, (err, result) => {
         callback(null, result)
     })
 }
 
-const register_account = async (first_name, lastName, middle_name, email, phone_number, improvementId, callback) => {  // Фамилия | Имя | Отчество | емейл | телефон
+const register_account = async (first_name, lastName, middle_name, email, phone_number, improvementId, callback) => {
     if(!first_name || !lastName || !middle_name || !email || !phone_number || !improvementId) return;
     const response = await instance.post('/person', {
         agreements: {
@@ -63,22 +61,22 @@ const register_account = async (first_name, lastName, middle_name, email, phone_
         phone: phone_number
     })  
     .catch(err => { })
-    if(response?.data?.success == undefined) return callback(null, {success:false, error: "Number already taken."}) 
+    if(!response?.data?.success) return callback(null, { success:false, error: "Number already taken." })
 
 
     if(response.data.success) {
         const data = response.data.data;
-        const {personUid} = data;
-        if(!personUid) return callback(null, {success:false, error: "No personUid."}) 
+        const { personUid } = data;
+
+        if(!personUid) return callback(null, { success:false, error: "No personUid." })
         
-        const request_code = await instance.post('/phone-auth/call-to', {personUid})
-        .catch(err => {})
-        if(request_code?.data == undefined) return callback(null, {success:false, error: "Message already sent."}) 
+        const request_code = await instance.post('/phone-auth/call-to', { personUid });
+        if(!request_code?.data) return callback(null, { success:false, error: "Message already sent." })
 
         if(request_code.data) {
-            brute_code(personUid, (err, result) => {
-                console.log({...result, first_name, lastName, email, phone_number});
-                return callback(null, {...result, first_name, lastName, email, phone_number});
+            await brute_code(personUid, (err, result) => {
+                console.log({ ...result, first_name, lastName, email, phone_number });
+                return callback(null, { ...result, first_name, lastName, email, phone_number });
             })
         }
     }

